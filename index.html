@@ -229,6 +229,16 @@
     <div class="note" id="hidUnsupported" style="display:none">⚠️ WebHID n'est pas disponible dans ce navigateur. Utilise <b>Chrome</b> ou <b>Edge</b> sur ordinateur pour les fonctions avancées (gyro, pavé tactile, résistance).</div>
   </section>
 
+  <!-- ============ JOURNAL / DEBUG ============ -->
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Journal &amp; erreurs</h2>
+      <button class="ghost" id="logClear">Vider</button>
+    </div>
+    <p class="sub" style="margin:6px 0 10px">Toutes les erreurs JS et les étapes de connexion s'affichent ici. Pratique si quelque chose ne réagit plus.</p>
+    <pre id="log" style="margin:0;max-height:220px;overflow:auto;background:#0a0e14;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;line-height:1.5;white-space:pre-wrap"></pre>
+  </section>
+
 </main>
 
 <script>
@@ -236,6 +246,19 @@
    PARTIE 1 — Gamepad API (toutes manettes)
    ========================================================= */
 const $ = id => document.getElementById(id);
+
+/* ----- Journal / capture des erreurs ----- */
+function logMsg(type, msg){
+  const el=$('log'); if(!el) return;
+  const colors={error:'#ef4444',warn:'#f59e0b',info:'#8b98a8'};
+  const t=new Date().toLocaleTimeString();
+  el.innerHTML += `<span style="color:${colors[type]||'#8b98a8'}">[${t}] ${type.toUpperCase()}: ${String(msg).replace(/</g,'&lt;')}</span>\n`;
+  el.scrollTop=el.scrollHeight;
+}
+window.addEventListener('error', e=>logMsg('error', `${e.message} (${(e.filename||'').split('/').pop()}:${e.lineno})`));
+window.addEventListener('unhandledrejection', e=>logMsg('error', 'Promesse rejetée: '+((e.reason&&e.reason.message)||e.reason)));
+document.addEventListener('DOMContentLoaded', ()=>{ $('logClear').addEventListener('click',()=>$('log').textContent=''); logMsg('info','Page chargée. '+('hid' in navigator?'WebHID disponible.':'WebHID INDISPONIBLE (utilise Chrome/Edge).')); });
+
 const BTN_NAMES = ['A / ✕','B / ◯','X / ▢','Y / △','LB / L1','RB / R1','LT / L2','RT / R2',
   'Back / Create','Start / Options','L3','R3','▲ Haut','▼ Bas','◀ Gauche','▶ Droite','PS / Guide','Touch'];
 
@@ -255,16 +278,19 @@ window.addEventListener('gamepadconnected', e=>{
   buildButtons(e.gamepad.buttons.length);
   $('gpStatus').textContent = e.gamepad.id.slice(0,40);
   $('gpStatus').className='pill on';
+  logMsg('info','Gamepad API connectée: '+e.gamepad.id);
 });
 window.addEventListener('gamepaddisconnected', e=>{
+  logMsg('warn','Gamepad API déconnectée: '+e.gamepad.id);
   if(e.gamepad.index===activeGp){ activeGp=null; $('gpStatus').textContent='Aucune manette'; $('gpStatus').className='pill off'; }
 });
 
 function setStick(el, x, y){ el.style.left=(50+x*42)+'%'; el.style.top=(50+y*42)+'%'; }
 function setTrig(fill,pct,v){ const p=Math.round(v*100); fill.style.height=p+'%'; pct.textContent=p+'%'; }
 
-let frames=0, lastHz=performance.now();
+let frames=0, lastHz=performance.now(), loopErrLogged=false;
 function loop(){
+ try{
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = activeGp!=null ? pads[activeGp] : null;
   if(!gp){ for(const p of pads){ if(p){gp=p; if(activeGp==null){activeGp=p.index; buildButtons(p.buttons.length); $('gpStatus').textContent=p.id.slice(0,40); $('gpStatus').className='pill on';} break;} } }
@@ -286,7 +312,8 @@ function loop(){
 
   frames++; const now=performance.now();
   if(now-lastHz>=500){ $('hz').textContent=Math.round(frames/((now-lastHz)/1000))+' Hz'; frames=0; lastHz=now; }
-  requestAnimationFrame(loop);
+ }catch(err){ if(!loopErrLogged){ loopErrLogged=true; logMsg('error','Boucle Gamepad: '+err.message); } }
+ requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
@@ -338,8 +365,11 @@ $('hidConnect').addEventListener('click', async ()=>{
     device=d; if(!d.opened) await d.open();
     prof = profileFor(d) || PROFILES.dualsense;
     isBT = detectBT(d, prof);
-    // Active le rapport complet (gyro/touch) en Bluetooth : la lecture du feature report déclenche le mode étendu.
-    try{ await d.receiveFeatureReport(prof.ftFull); }catch(e){}
+    logMsg('info', `Connecté: ${d.productName||prof.name} (VID ${d.vendorId.toString(16)}/PID ${d.productId.toString(16)}) — ${isBT?'Bluetooth':'USB'}`);
+    // Active le rapport complet (gyro/touch) — UNIQUEMENT en Bluetooth.
+    // En USB le mode complet est déjà actif ; appeler ce feature report peut faire perdre
+    // la manette à la Gamepad API de Chrome (boutons/sticks ne s'affichent plus).
+    if(isBT){ try{ await d.receiveFeatureReport(prof.ftFull); logMsg('info','Mode rapport complet activé (BT)'); }catch(e){ logMsg('warn','receiveFeatureReport: '+e.message); } }
     $('hidPanels').style.display='block';
     $('hidStatus').textContent=prof.name+' : connecté'; $('hidStatus').className='pill on';
     $('hidInfo').textContent=(d.productName||prof.name);
