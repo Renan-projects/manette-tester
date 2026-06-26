@@ -54,6 +54,9 @@
   select{background:var(--panel2);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px}
   .led{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--bad);margin-right:6px;vertical-align:middle}
   .led.on{background:var(--ok)}
+  .zonewrap{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+  .zone{background:var(--bg);border:1px solid var(--border);border-radius:8px;text-align:center;padding:12px 4px;font-size:12px;color:var(--muted);transition:.08s}
+  .zone.hit{background:var(--accent);border-color:var(--accent2);color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.4)}
 </style>
 </head>
 <body>
@@ -126,17 +129,17 @@
           <button id="vibTest">Tester la vibration</button>
           <button class="ghost" id="vibStop">Stop</button>
         </div>
-        <div class="note">La vibration utilise <code>vibrationActuator</code> (supporté par Chrome/Edge). Pour le gyro, le pavé tactile et la résistance des gâchettes, voir la section DualSense ci-dessous.</div>
+        <div class="note">La vibration utilise <code>vibrationActuator</code> (supporté par Chrome/Edge). Pour le gyro, le pavé tactile et la résistance des gâchettes, voir la section WebHID ci-dessous.</div>
       </div>
     </div>
   </section>
 
-  <!-- ============ DUALSENSE WEBHID (avancé) ============ -->
+  <!-- ============ WEBHID — gyro / pavé tactile / résistance ============ -->
   <section class="panel">
-    <h2>DualSense — fonctions avancées (WebHID)</h2>
-    <p class="sub">Gâchettes adaptatives / résistance · Gyroscope · Accéléromètre · Pavé tactile · Batterie. <b>Branche la manette en USB de préférence</b> (recommandé pour la résistance des gâchettes).</p>
+    <h2>Gyroscope &amp; pavé tactile (WebHID)</h2>
+    <p class="sub">Gyroscope · Accéléromètre · Pavé tactile · (Résistance des gâchettes sur DualSense). Le gyro et le pavé tactile sont des composants physiques : seules les manettes <b>PlayStation (DualShock 4 et DualSense)</b> en sont équipées. <b>USB de préférence.</b></p>
     <div class="row">
-      <button id="hidConnect">Connecter une DualSense</button>
+      <button id="hidConnect">Connecter une manette (DualSense / DualShock 4)</button>
       <button class="ghost" id="hidDisconnect" disabled>Déconnecter</button>
       <span id="hidInfo" class="pill">—</span>
     </div>
@@ -145,7 +148,7 @@
       <div class="grid cols2" style="margin-top:16px">
 
         <!-- Résistance gachettes -->
-        <div class="panel" style="background:var(--panel2)">
+        <div class="panel" id="trigPanel" style="background:var(--panel2)">
           <h3 style="font-size:13px;margin:0 0 4px">Résistance des gâchettes (adaptive triggers)</h3>
           <p class="sub" style="margin-bottom:10px">Mets de la résistance dans L2 / R2.</p>
           <label class="f">Mode
@@ -176,10 +179,12 @@
           <div class="kv"><span>Connexion</span><span id="connType">—</span></div>
           <div class="kv"><span>Batterie</span><span id="batt">—</span></div>
           <div class="kv"><span>En charge</span><span id="charging">—</span></div>
-          <h3 style="font-size:13px;margin:14px 0 8px">Barre lumineuse (LED)</h3>
-          <div class="row">
-            <input type="color" id="ledColor" value="#0066ff" style="width:48px;height:34px;border:none;background:none">
-            <button id="applyLed">Appliquer la couleur</button>
+          <div id="ledRow">
+            <h3 style="font-size:13px;margin:14px 0 8px">Barre lumineuse (LED)</h3>
+            <div class="row">
+              <input type="color" id="ledColor" value="#0066ff" style="width:48px;height:34px;border:none;background:none">
+              <button id="applyLed">Appliquer la couleur</button>
+            </div>
           </div>
         </div>
       </div>
@@ -204,12 +209,19 @@
 
         <!-- Touchpad -->
         <div class="panel" style="background:var(--panel2)">
-          <h3 style="font-size:13px;margin:0 0 8px">Pavé tactile (multi-touch)</h3>
+          <h3 style="font-size:13px;margin:0 0 8px">Pavé tactile (position du doigt + clic)</h3>
           <canvas id="pad" width="480" height="240"></canvas>
           <div class="row" style="margin-top:8px;font-size:12px;color:var(--muted)">
             <span><span class="led" id="t0led"></span>Doigt 1 : <span id="t0xy" class="mono">—</span></span>
             <span><span class="led" id="t1led"></span>Doigt 2 : <span id="t1xy" class="mono">—</span></span>
           </div>
+          <div class="zonewrap">
+            <div class="zone" data-z="HG">Haut<br>Gauche</div>
+            <div class="zone" data-z="HD">Haut<br>Droite</div>
+            <div class="zone" data-z="BG">Bas<br>Gauche</div>
+            <div class="zone" data-z="BD">Bas<br>Droite</div>
+          </div>
+          <div class="kv" style="margin-top:8px"><span>Dernier clic</span><span id="clickZone">—</span></div>
         </div>
       </div>
     </div>
@@ -296,42 +308,62 @@ $('vibStop').addEventListener('click',()=>{
 });
 
 /* =========================================================
-   PARTIE 2 — DualSense via WebHID (gyro / touchpad / résistance)
+   PARTIE 2 — WebHID (gyro / touchpad / résistance) — DualSense & DualShock 4
    ========================================================= */
-const SONY=0x054c, DS5=[0x0ce6,0x0df2]; // DualSense + DualSense Edge
-let device=null, isBT=false;
+const SONY=0x054c;
+// Profils par manette : offsets des capteurs dans le rapport d'entrée.
+const PROFILES = {
+  dualsense: { pids:[0x0ce6,0x0df2], name:'DualSense', hasTriggers:true,
+    padW:1920, padH:1080, btId:0x31, btBase:1, ftFull:0x05,
+    gyro:15, accel:21, touch0:32, touch1:36, clickByte:9, clickMask:0x02, batt:52 },
+  ds4: { pids:[0x05c4,0x09cc,0x0ba0], name:'DualShock 4', hasTriggers:false,
+    padW:1920, padH:942, btId:0x11, btBase:2, ftFull:0x02,
+    gyro:13, accel:19, touch0:35, touch1:39, clickByte:6, clickMask:0x02, batt:30 }
+};
+let device=null, isBT=false, prof=null;
 
 if(!('hid' in navigator)){ $('hidUnsupported').style.display='block'; $('hidConnect').disabled=true; }
 
+function profileFor(d){
+  for(const k in PROFILES){ if(d.vendorId===SONY && PROFILES[k].pids.includes(d.productId)) return PROFILES[k]; }
+  return null;
+}
+
 $('hidConnect').addEventListener('click', async ()=>{
   try{
-    const filters = DS5.map(pid=>({vendorId:SONY, productId:pid}));
+    const filters=[];
+    for(const k in PROFILES) PROFILES[k].pids.forEach(pid=>filters.push({vendorId:SONY, productId:pid}));
     const [d] = await navigator.hid.requestDevice({filters});
     if(!d) return;
     device=d; if(!d.opened) await d.open();
-    isBT = detectBT(d);
+    prof = profileFor(d) || PROFILES.dualsense;
+    isBT = detectBT(d, prof);
+    // Active le rapport complet (gyro/touch) en Bluetooth : la lecture du feature report déclenche le mode étendu.
+    try{ await d.receiveFeatureReport(prof.ftFull); }catch(e){}
     $('hidPanels').style.display='block';
-    $('hidStatus').textContent='DualSense : connecté'; $('hidStatus').className='pill on';
-    $('hidInfo').textContent=d.productName||'DualSense';
+    $('hidStatus').textContent=prof.name+' : connecté'; $('hidStatus').className='pill on';
+    $('hidInfo').textContent=(d.productName||prof.name);
     $('hidConnect').disabled=true; $('hidDisconnect').disabled=false;
     $('connType').textContent=isBT?'Bluetooth':'USB';
-    $('trigWarn').style.display=isBT?'block':'none';
+    // Gâchettes adaptatives + LightBar pilotable : DualSense uniquement.
+    $('trigPanel').style.display = prof.hasTriggers?'block':'none';
+    $('ledRow').style.display   = prof.hasTriggers?'block':'none';
+    $('trigWarn').style.display = (prof.hasTriggers&&isBT)?'block':'none';
     d.addEventListener('inputreport', onInput);
   }catch(err){ console.error(err); alert('Connexion échouée : '+err.message); }
 });
 $('hidDisconnect').addEventListener('click', async ()=>{
-  if(device){ try{await device.close();}catch(e){} device=null; }
-  $('hidStatus').textContent='DualSense : non connecté'; $('hidStatus').className='pill';
+  if(device){ try{await device.close();}catch(e){} device=null; prof=null; }
+  $('hidStatus').textContent='Manette : non connectée'; $('hidStatus').className='pill';
   $('hidConnect').disabled=false; $('hidDisconnect').disabled=true; $('hidPanels').style.display='none';
 });
 
-function detectBT(d){
-  // En USB le rapport d'entrée fait 64 octets (id 0x01) ; en BT il est plus grand (id 0x31).
+function detectBT(d, p){
   const col = d.collections && d.collections[0];
   if(col && col.inputReports){
-    const has31 = col.inputReports.some(r=>r.reportId===0x31);
-    const has01 = col.inputReports.some(r=>r.reportId===0x01);
-    if(has31 && !has01) return true;
+    const hasBT = col.inputReports.some(r=>r.reportId===p.btId);
+    const hasUsb = col.inputReports.some(r=>r.reportId===0x01);
+    if(hasBT && !hasUsb) return true;
   }
   return false;
 }
@@ -339,35 +371,50 @@ function detectBT(d){
 function s16(v){ return v>32767 ? v-65536 : v; }
 
 function onInput(e){
+  if(!prof) return;
   const id=e.reportId, dv=e.data;
-  // base : USB(0x01) -> 0 ; BT(0x31) -> +1 (octet d'en-tête)
+  // base : USB (rapport 0x01) -> 0 ; Bluetooth (rapport étendu) -> décalage d'en-tête
   let base;
-  if(id===0x31){ base=1; isBT=true; }
+  if(id===prof.btId){ base=prof.btBase; isBT=true; }
   else if(id===0x01){ base=0; }
   else return;
+  if(dv.byteLength < base+prof.accel+6) return; // rapport réduit (BT non encore en mode complet)
 
-  const g=(o)=>dv.getUint8(base+o);
-  // Sticks/gachettes déjà gérés par la Gamepad API ; ici on lit les capteurs.
-
-  // Gyroscope (int16 LE) offsets 15,17,19 ; Accel 21,23,25
-  const gx=s16(dv.getUint16(base+15,true)), gy=s16(dv.getUint16(base+17,true)), gz=s16(dv.getUint16(base+19,true));
-  const ax=s16(dv.getUint16(base+21,true)), ay=s16(dv.getUint16(base+23,true)), az=s16(dv.getUint16(base+25,true));
-  setMotion('g','x',gx,'gxb'); setMotion('g','y',gy,'gyb'); setMotion('g','z',gz,'gzb');
-  setMotion('a','x',ax,'axb'); setMotion('a','y',ay,'ayb'); setMotion('a','z',az,'azb');
-
-  // Pavé tactile : 2 points à partir de l'offset 32 (4 octets chacun)
-  drawTouch(
-    parseTouch(dv, base+32),
-    parseTouch(dv, base+36)
-  );
-
-  // Batterie : offset 52 (niveau bits 0-3) / 53 état charge
   try{
-    const bRaw=g(52); const level=bRaw & 0x0f; const status=(bRaw>>4)&0x0f;
-    let pct = Math.min(100, Math.round(level*10+5));
-    $('batt').textContent=pct+' %';
-    $('charging').textContent = (status===0x1)?'oui ⚡':'non';
-  }catch(e){}
+    // Gyroscope + accéléromètre (int16 LE), offsets selon le profil de la manette.
+    const G=prof.gyro, A=prof.accel;
+    setMotion('g','x',s16(dv.getUint16(base+G,true)),'gxb');
+    setMotion('g','y',s16(dv.getUint16(base+G+2,true)),'gyb');
+    setMotion('g','z',s16(dv.getUint16(base+G+4,true)),'gzb');
+    setMotion('a','x',s16(dv.getUint16(base+A,true)),'axb');
+    setMotion('a','y',s16(dv.getUint16(base+A+2,true)),'ayb');
+    setMotion('a','z',s16(dv.getUint16(base+A+4,true)),'azb');
+
+    // Pavé tactile : 2 points (4 octets chacun)
+    const t0=parseTouch(dv, base+prof.touch0), t1=parseTouch(dv, base+prof.touch1);
+    drawTouch(t0,t1);
+
+    // Clic du pavé tactile -> quadrant (selon la position du doigt actif)
+    const clicked = (dv.getUint8(base+prof.clickByte) & prof.clickMask)!==0;
+    let zone=null;
+    if(clicked){
+      const t = t0.active ? t0 : (t1.active ? t1 : null);
+      if(t){ zone = (t.y < prof.padH/2 ? 'H':'B') + (t.x < prof.padW/2 ? 'G':'D'); }
+    }
+    updateZone(clicked, zone);
+
+    // Batterie (approx. : nibble bas = niveau 0-10)
+    const bRaw=dv.getUint8(base+prof.batt); const level=bRaw & 0x0f;
+    $('batt').textContent=Math.min(100, level*10)+' %';
+    $('charging').textContent = (bRaw & 0x10)?'oui ⚡':'non';
+  }catch(err){ /* rapport trop court, on ignore cette trame */ }
+}
+
+const ZONE_NAMES={HG:'Haut-Gauche ↖',HD:'Haut-Droite ↗',BG:'Bas-Gauche ↙',BD:'Bas-Droite ↘'};
+const zoneEls=document.querySelectorAll('.zone');
+function updateZone(clicked, zone){
+  zoneEls.forEach(z=>z.classList.toggle('hit', clicked && z.dataset.z===zone));
+  if(clicked && zone) $('clickZone').textContent=ZONE_NAMES[zone];
 }
 
 function setMotion(kind,axis,val,barId){
@@ -386,15 +433,21 @@ function parseTouch(dv, off){
 }
 
 const padCanvas=$('pad'), pctx=padCanvas.getContext('2d');
-const PAD_W=1920, PAD_H=1080;
 function drawTouch(t0,t1){
-  pctx.clearRect(0,0,padCanvas.width,padCanvas.height);
-  pctx.strokeStyle='#1c2330'; pctx.strokeRect(2,2,padCanvas.width-4,padCanvas.height-4);
+  const W=padCanvas.width, H=padCanvas.height;
+  const padW=prof?prof.padW:1920, padH=prof?prof.padH:1080;
+  pctx.clearRect(0,0,W,H);
+  // Repères des 4 quadrants
+  pctx.strokeStyle='#243043'; pctx.lineWidth=1;
+  pctx.beginPath(); pctx.moveTo(W/2,0); pctx.lineTo(W/2,H); pctx.moveTo(0,H/2); pctx.lineTo(W,H/2); pctx.stroke();
+  pctx.strokeStyle='#1c2330'; pctx.strokeRect(2,2,W-4,H-4);
   [[t0,'#22d3ee','t0led','t0xy'],[t1,'#f59e0b','t1led','t1xy']].forEach(([t,col,led,lbl])=>{
     $(led).className='led'+(t.active?' on':'');
     if(t.active){
-      const cx=t.x/PAD_W*padCanvas.width, cy=t.y/PAD_H*padCanvas.height;
+      const cx=t.x/padW*W, cy=t.y/padH*H;
       pctx.beginPath(); pctx.arc(cx,cy,16,0,Math.PI*2); pctx.fillStyle=col; pctx.fill();
+      pctx.fillStyle='#fff'; pctx.font='10px monospace'; pctx.textAlign='center';
+      pctx.fillText((t.x<padW/2?'G':'D')+(t.y<padH/2?'H':'B'), cx, cy+3);
       $(lbl).textContent=t.x+', '+t.y;
     } else $(lbl).textContent='—';
   });
@@ -421,7 +474,7 @@ function triggerBytes(mode){
 }
 
 async function sendOutput(opts={}){
-  if(!device) return;
+  if(!device || !prof || !prof.hasTriggers) return; // sorties (gâchettes/LED) : DualSense uniquement
   const mode=$('trigMode').value;
   const L = (opts.clear||!$('enL2').checked) ? new Uint8Array(11) : triggerBytes(mode);
   const R = (opts.clear||!$('enR2').checked) ? new Uint8Array(11) : triggerBytes(mode);

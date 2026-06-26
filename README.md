@@ -13,24 +13,25 @@ Un testeur de manette **100% en HTML/JS**, dans un seul fichier — transportabl
 - ✅ Test de **vibration** (moteur fort / faible, durée réglable)
 - ✅ Fréquence de rafraîchissement (Hz)
 
-### Avancé — DualSense (WebHID, Chrome/Edge)
-- ✅ **Résistance des gâchettes** (adaptive triggers) : mode rigide ou pulsation, force et position réglables
+### Avancé — DualSense & DualShock 4 (WebHID, Chrome/Edge)
 - ✅ **Gyroscope** (pitch / yaw / roll)
 - ✅ **Accéléromètre** (X / Y / Z)
-- ✅ **Pavé tactile** multi-touch (visualisation 2 doigts)
-- ✅ **Batterie** et état de charge
-- ✅ Couleur de la **barre lumineuse**
+- ✅ **Pavé tactile** : position du/des doigt(s) en direct
+- ✅ **Détection de quadrant au clic** : haut-gauche, haut-droite, bas-gauche, bas-droite
+- ✅ **Batterie**
+- ✅ **Résistance des gâchettes** (adaptive triggers, DualSense uniquement) : mode rigide ou pulsation, force et position réglables
+- ✅ Couleur de la **barre lumineuse** (DualSense)
+
+> ℹ️ Le gyroscope et le pavé tactile sont des **composants physiques** : seules les manettes **PlayStation (DualShock 4 et DualSense)** en sont équipées. Les manettes Xbox/génériques n'en ont pas.
 
 ## Conseils
-- Pour la **résistance des gâchettes**, branche la DualSense en **USB** (recommandé). Le Bluetooth est géré (CRC) mais moins fiable.
+- Branche la manette en **USB** de préférence (plus fiable, et indispensable pour la résistance des gâchettes ; le Bluetooth est géré avec CRC).
 - WebHID (gyro, pavé tactile, résistance) ne fonctionne que sur **Chrome / Edge desktop**. La partie boutons/sticks/gâchettes/vibration marche dans tous les navigateurs récents.
-- Clique sur « Connecter une DualSense » puis choisis la manette dans la fenêtre du navigateur.
+- Clique sur « Connecter une manette » puis choisis la manette dans la fenêtre du navigateur.
 
 ## Compatibilité
-| Fonction | Navigateur |
-|---|---|
-| Boutons, sticks, gâchettes, vibration | Chrome, Edge, Firefox… |
-| Gyro, accéléromètre, pavé tactile, résistance | Chrome, Edge (desktop) |
-
-Manettes : Xbox, PlayStation (DS4/DualSense), génériques compatibles XInput/DInput.
-Fonctions avancées : **DualSense** et **DualSense Edge**.
+| Fonction | Navigateur | Manettes |
+|---|---|---|
+| Boutons, sticks, gâchettes, vibration | Chrome, Edge, Firefox… | Xbox, PlayStation, génériques |
+| Gyro, accéléromètre, pavé tactile + quadrant | Chrome, Edge (desktop) | DualShock 4, DualSense |
+| Résistance des gâchettes, LightBar | Chrome, Edge (desktop) | DualSense / DualSense Edge |
