@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testeur de Manette 100%</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2a3340;
+    --txt:#e6edf3; --muted:#8b98a8; --accent:#3b82f6; --accent2:#22d3ee;
+    --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --press:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);}
+  header{padding:14px 20px;background:linear-gradient(90deg,#111827,#0d1117);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0}
+  .pill{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .pill.on{color:#fff;background:var(--ok);border-color:var(--ok)}
+  .pill.off{color:#fff;background:var(--bad);border-color:var(--bad)}
+  main{max-width:1100px;margin:0 auto;padding:20px;display:grid;gap:18px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .panel h2{margin:0 0 4px;font-size:15px}
+  .panel .sub{color:var(--muted);font-size:12px;margin:0 0 14px}
+  .grid{display:grid;gap:14px}
+  .cols2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .cols3{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  button{font-family:inherit;font-size:13px;cursor:pointer;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-weight:600}
+  button.ghost{background:transparent;border:1px solid var(--border);color:var(--txt)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  label.f{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);gap:10px;margin:8px 0}
+  input[type=range]{width:100%}
+  .btnsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px}
+  .b{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 4px;text-align:center;font-size:11px;transition:.05s;min-height:48px;display:flex;flex-direction:column;justify-content:center;gap:3px}
+  .b .nm{color:var(--muted);font-size:10px}
+  .b.act{background:var(--press);border-color:var(--accent2);color:#fff;box-shadow:0 0 0 2px rgba(59,130,246,.4)}
+  .b .v{font-variant-numeric:tabular-nums;font-weight:700}
+  .stick{position:relative;width:150px;height:150px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);margin:0 auto}
+  .stick .dot{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--accent2);left:50%;top:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px var(--accent2)}
+  .stick .ctr{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--border);left:50%;top:50%;transform:translate(-50%,-50%)}
+  .trigwrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .trig{width:60px;height:170px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden}
+  .trig .fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--accent),var(--accent2));height:0%}
+  .trig .pct{position:absolute;top:6px;left:0;right:0;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;mix-blend-mode:difference}
+  .mono{font-variant-numeric:tabular-nums}
+  .axisrow{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:4px 0}
+  .bar{height:8px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;overflow:hidden;position:relative}
+  .bar .f{position:absolute;top:0;bottom:0;left:50%;background:var(--accent2);width:2px}
+  canvas{background:#0a0e14;border:1px solid var(--border);border-radius:10px;width:100%;display:block}
+  .kv{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)}
+  .kv span:last-child{font-variant-numeric:tabular-nums;font-weight:700}
+  .note{font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:10px}
+  .warnbox{border-color:var(--warn);color:#fde68a}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  select{background:var(--panel2);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px}
+  .led{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--bad);margin-right:6px;vertical-align:middle}
+  .led.on{background:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 Testeur de Manette 100%</h1>
+  <span id="gpStatus" class="pill off">Aucune manette</span>
+  <span id="hidStatus" class="pill">DualSense : non connecté</span>
+  <span style="flex:1"></span>
+  <span class="pill mono" id="hz">0 Hz</span>
+</header>
+
+<main>
+
+  <!-- ============ GAMEPAD API (toutes manettes) ============ -->
+  <section class="panel">
+    <h2>Manette standard (Gamepad API)</h2>
+    <p class="sub">Fonctionne avec n'importe quelle manette (Xbox, PlayStation, générique). Branche/connecte ta manette puis appuie sur un bouton pour l'activer.</p>
+
+    <div class="grid cols2">
+      <!-- Boutons -->
+      <div>
+        <h3 style="font-size:13px;margin:0 0 8px">Boutons</h3>
+        <div id="buttons" class="btnsgrid"></div>
+      </div>
+
+      <!-- Sticks -->
+      <div>
+        <h3 style="font-size:13px;margin:0 0 8px">Sticks analogiques</h3>
+        <div class="row" style="justify-content:space-around">
+          <div>
+            <div class="stick"><div class="ctr"></div><div id="stickL" class="dot"></div></div>
+            <div class="axisrow"><span>L · X</span><span id="lx" class="mono">0.00</span></div>
+            <div class="axisrow"><span>L · Y</span><span id="ly" class="mono">0.00</span></div>
+          </div>
+          <div>
+            <div class="stick"><div class="ctr"></div><div id="stickR" class="dot"></div></div>
+            <div class="axisrow"><span>R · X</span><span id="rx" class="mono">0.00</span></div>
+            <div class="axisrow"><span>R · Y</span><span id="ry" class="mono">0.00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid cols2" style="margin-top:14px">
+      <!-- Gachettes pression -->
+      <div>
+        <h3 style="font-size:13px;margin:0 0 8px">Pression des gâchettes (force 0–100%)</h3>
+        <div class="row" style="justify-content:space-around">
+          <div class="trigwrap">
+            <div class="trig"><div class="pct" id="l2pct">0%</div><div id="l2fill" class="fill"></div></div>
+            <span class="mono">L2 / LT</span>
+          </div>
+          <div class="trigwrap">
+            <div class="trig"><div class="pct" id="r2pct">0%</div><div id="r2fill" class="fill"></div></div>
+            <span class="mono">R2 / RT</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vibration -->
+      <div>
+        <h3 style="font-size:13px;margin:0 0 8px">Vibration (moteurs)</h3>
+        <label class="f">Moteur fort <span id="strongV">50%</span></label>
+        <input type="range" id="strong" min="0" max="100" value="50">
+        <label class="f">Moteur faible <span id="weakV">50%</span></label>
+        <input type="range" id="weak" min="0" max="100" value="50">
+        <label class="f">Durée (ms) <span id="durV">500</span></label>
+        <input type="range" id="dur" min="100" max="3000" value="500" step="100">
+        <div class="row" style="margin-top:10px">
+          <button id="vibTest">Tester la vibration</button>
+          <button class="ghost" id="vibStop">Stop</button>
+        </div>
+        <div class="note">La vibration utilise <code>vibrationActuator</code> (supporté par Chrome/Edge). Pour le gyro, le pavé tactile et la résistance des gâchettes, voir la section DualSense ci-dessous.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DUALSENSE WEBHID (avancé) ============ -->
+  <section class="panel">
+    <h2>DualSense — fonctions avancées (WebHID)</h2>
+    <p class="sub">Gâchettes adaptatives / résistance · Gyroscope · Accéléromètre · Pavé tactile · Batterie. <b>Branche la manette en USB de préférence</b> (recommandé pour la résistance des gâchettes).</p>
+    <div class="row">
+      <button id="hidConnect">Connecter une DualSense</button>
+      <button class="ghost" id="hidDisconnect" disabled>Déconnecter</button>
+      <span id="hidInfo" class="pill">—</span>
+    </div>
+
+    <div id="hidPanels" style="display:none">
+      <div class="grid cols2" style="margin-top:16px">
+
+        <!-- Résistance gachettes -->
+        <div class="panel" style="background:var(--panel2)">
+          <h3 style="font-size:13px;margin:0 0 4px">Résistance des gâchettes (adaptive triggers)</h3>
+          <p class="sub" style="margin-bottom:10px">Mets de la résistance dans L2 / R2.</p>
+          <label class="f">Mode
+            <select id="trigMode">
+              <option value="0">Aucune (libre)</option>
+              <option value="1" selected>Rigide (résistance constante)</option>
+              <option value="2">Pulsation (à-coups)</option>
+            </select>
+          </label>
+          <label class="f">Force <span id="forceV">160</span></label>
+          <input type="range" id="force" min="0" max="255" value="160">
+          <label class="f">Position de départ <span id="startV">0</span></label>
+          <input type="range" id="startPos" min="0" max="9" value="0">
+          <div class="row" style="margin:10px 0">
+            <label class="f" style="margin:0"><input type="checkbox" id="enL2" checked> Appliquer à L2</label>
+            <label class="f" style="margin:0"><input type="checkbox" id="enR2" checked> Appliquer à R2</label>
+          </div>
+          <div class="row">
+            <button id="applyTrig">Appliquer la résistance</button>
+            <button class="ghost" id="clearTrig">Relâcher</button>
+          </div>
+          <div class="note warnbox" id="trigWarn" style="display:none">En Bluetooth la résistance peut ne pas s'appliquer — préfère l'USB.</div>
+        </div>
+
+        <!-- Batterie + LED -->
+        <div class="panel" style="background:var(--panel2)">
+          <h3 style="font-size:13px;margin:0 0 8px">État</h3>
+          <div class="kv"><span>Connexion</span><span id="connType">—</span></div>
+          <div class="kv"><span>Batterie</span><span id="batt">—</span></div>
+          <div class="kv"><span>En charge</span><span id="charging">—</span></div>
+          <h3 style="font-size:13px;margin:14px 0 8px">Barre lumineuse (LED)</h3>
+          <div class="row">
+            <input type="color" id="ledColor" value="#0066ff" style="width:48px;height:34px;border:none;background:none">
+            <button id="applyLed">Appliquer la couleur</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid cols2" style="margin-top:14px">
+        <!-- Gyro / accel -->
+        <div class="panel" style="background:var(--panel2)">
+          <h3 style="font-size:13px;margin:0 0 8px">Mouvement (gyroscope + accéléromètre)</h3>
+          <div class="kv"><span>Gyro X (pitch)</span><span id="gx">0</span></div>
+          <div class="bar"><div class="f" id="gxb"></div></div>
+          <div class="kv" style="margin-top:6px"><span>Gyro Y (yaw)</span><span id="gy">0</span></div>
+          <div class="bar"><div class="f" id="gyb"></div></div>
+          <div class="kv" style="margin-top:6px"><span>Gyro Z (roll)</span><span id="gz">0</span></div>
+          <div class="bar"><div class="f" id="gzb"></div></div>
+          <div class="kv" style="margin-top:10px"><span>Accel X</span><span id="ax">0</span></div>
+          <div class="bar"><div class="f" id="axb"></div></div>
+          <div class="kv" style="margin-top:6px"><span>Accel Y</span><span id="ay">0</span></div>
+          <div class="bar"><div class="f" id="ayb"></div></div>
+          <div class="kv" style="margin-top:6px"><span>Accel Z</span><span id="az">0</span></div>
+          <div class="bar"><div class="f" id="azb"></div></div>
+        </div>
+
+        <!-- Touchpad -->
+        <div class="panel" style="background:var(--panel2)">
+          <h3 style="font-size:13px;margin:0 0 8px">Pavé tactile (multi-touch)</h3>
+          <canvas id="pad" width="480" height="240"></canvas>
+          <div class="row" style="margin-top:8px;font-size:12px;color:var(--muted)">
+            <span><span class="led" id="t0led"></span>Doigt 1 : <span id="t0xy" class="mono">—</span></span>
+            <span><span class="led" id="t1led"></span>Doigt 2 : <span id="t1xy" class="mono">—</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" id="hidUnsupported" style="display:none">⚠️ WebHID n'est pas disponible dans ce navigateur. Utilise <b>Chrome</b> ou <b>Edge</b> sur ordinateur pour les fonctions avancées (gyro, pavé tactile, résistance).</div>
+  </section>
+
+</main>
+
+<script>
+/* =========================================================
+   PARTIE 1 — Gamepad API (toutes manettes)
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const BTN_NAMES = ['A / ✕','B / ◯','X / ▢','Y / △','LB / L1','RB / R1','LT / L2','RT / R2',
+  'Back / Create','Start / Options','L3','R3','▲ Haut','▼ Bas','◀ Gauche','▶ Droite','PS / Guide','Touch'];
+
+let activeGp = null;
+const btnEls = [];
+function buildButtons(n){
+  const wrap = $('buttons'); wrap.innerHTML=''; btnEls.length=0;
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div'); d.className='b';
+    d.innerHTML=`<span class="nm">${BTN_NAMES[i]||('Btn '+i)}</span><span class="v">0.00</span>`;
+    wrap.appendChild(d); btnEls.push(d);
+  }
+}
+
+window.addEventListener('gamepadconnected', e=>{
+  activeGp = e.gamepad.index;
+  buildButtons(e.gamepad.buttons.length);
+  $('gpStatus').textContent = e.gamepad.id.slice(0,40);
+  $('gpStatus').className='pill on';
+});
+window.addEventListener('gamepaddisconnected', e=>{
+  if(e.gamepad.index===activeGp){ activeGp=null; $('gpStatus').textContent='Aucune manette'; $('gpStatus').className='pill off'; }
+});
+
+function setStick(el, x, y){ el.style.left=(50+x*42)+'%'; el.style.top=(50+y*42)+'%'; }
+function setTrig(fill,pct,v){ const p=Math.round(v*100); fill.style.height=p+'%'; pct.textContent=p+'%'; }
+
+let frames=0, lastHz=performance.now();
+function loop(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = activeGp!=null ? pads[activeGp] : null;
+  if(!gp){ for(const p of pads){ if(p){gp=p; if(activeGp==null){activeGp=p.index; buildButtons(p.buttons.length); $('gpStatus').textContent=p.id.slice(0,40); $('gpStatus').className='pill on';} break;} } }
+
+  if(gp){
+    if(btnEls.length!==gp.buttons.length) buildButtons(gp.buttons.length);
+    gp.buttons.forEach((b,i)=>{
+      const el=btnEls[i]; if(!el) return;
+      el.querySelector('.v').textContent=b.value.toFixed(2);
+      el.classList.toggle('act', b.pressed||b.value>0.1);
+    });
+    const a=gp.axes;
+    if(a.length>=2){ setStick($('stickL'),a[0],a[1]); $('lx').textContent=a[0].toFixed(2); $('ly').textContent=a[1].toFixed(2); }
+    if(a.length>=4){ setStick($('stickR'),a[2],a[3]); $('rx').textContent=a[2].toFixed(2); $('ry').textContent=a[3].toFixed(2); }
+    // gachettes : boutons 6 et 7 (mapping standard)
+    if(gp.buttons[6]) setTrig($('l2fill'),$('l2pct'),gp.buttons[6].value);
+    if(gp.buttons[7]) setTrig($('r2fill'),$('r2pct'),gp.buttons[7].value);
+  }
+
+  frames++; const now=performance.now();
+  if(now-lastHz>=500){ $('hz').textContent=Math.round(frames/((now-lastHz)/1000))+' Hz'; frames=0; lastHz=now; }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// Vibration
+['strong','weak','dur'].forEach(id=>$(id).addEventListener('input',()=>{
+  $('strongV').textContent=$('strong').value+'%'; $('weakV').textContent=$('weak').value+'%'; $('durV').textContent=$('dur').value;
+}));
+$('vibTest').addEventListener('click', async ()=>{
+  const pads=navigator.getGamepads(); const gp=activeGp!=null?pads[activeGp]:pads.find(p=>p);
+  const act = gp && (gp.vibrationActuator || (gp.hapticActuators&&gp.hapticActuators[0]));
+  if(!act){ alert('Aucun moteur de vibration détecté sur cette manette.'); return; }
+  try{
+    await act.playEffect('dual-rumble',{duration:+$('dur').value,strongMagnitude:$('strong').value/100,weakMagnitude:$('weak').value/100});
+  }catch(err){ console.warn(err); alert('Vibration non supportée : '+err.message); }
+});
+$('vibStop').addEventListener('click',()=>{
+  const pads=navigator.getGamepads(); const gp=activeGp!=null?pads[activeGp]:pads.find(p=>p);
+  const act=gp&&gp.vibrationActuator; if(act&&act.reset) act.reset();
+});
+
+/* =========================================================
+   PARTIE 2 — DualSense via WebHID (gyro / touchpad / résistance)
+   ========================================================= */
+const SONY=0x054c, DS5=[0x0ce6,0x0df2]; // DualSense + DualSense Edge
+let device=null, isBT=false;
+
+if(!('hid' in navigator)){ $('hidUnsupported').style.display='block'; $('hidConnect').disabled=true; }
+
+$('hidConnect').addEventListener('click', async ()=>{
+  try{
+    const filters = DS5.map(pid=>({vendorId:SONY, productId:pid}));
+    const [d] = await navigator.hid.requestDevice({filters});
+    if(!d) return;
+    device=d; if(!d.opened) await d.open();
+    isBT = detectBT(d);
+    $('hidPanels').style.display='block';
+    $('hidStatus').textContent='DualSense : connecté'; $('hidStatus').className='pill on';
+    $('hidInfo').textContent=d.productName||'DualSense';
+    $('hidConnect').disabled=true; $('hidDisconnect').disabled=false;
+    $('connType').textContent=isBT?'Bluetooth':'USB';
+    $('trigWarn').style.display=isBT?'block':'none';
+    d.addEventListener('inputreport', onInput);
+  }catch(err){ console.error(err); alert('Connexion échouée : '+err.message); }
+});
+$('hidDisconnect').addEventListener('click', async ()=>{
+  if(device){ try{await device.close();}catch(e){} device=null; }
+  $('hidStatus').textContent='DualSense : non connecté'; $('hidStatus').className='pill';
+  $('hidConnect').disabled=false; $('hidDisconnect').disabled=true; $('hidPanels').style.display='none';
+});
+
+function detectBT(d){
+  // En USB le rapport d'entrée fait 64 octets (id 0x01) ; en BT il est plus grand (id 0x31).
+  const col = d.collections && d.collections[0];
+  if(col && col.inputReports){
+    const has31 = col.inputReports.some(r=>r.reportId===0x31);
+    const has01 = col.inputReports.some(r=>r.reportId===0x01);
+    if(has31 && !has01) return true;
+  }
+  return false;
+}
+
+function s16(v){ return v>32767 ? v-65536 : v; }
+
+function onInput(e){
+  const id=e.reportId, dv=e.data;
+  // base : USB(0x01) -> 0 ; BT(0x31) -> +1 (octet d'en-tête)
+  let base;
+  if(id===0x31){ base=1; isBT=true; }
+  else if(id===0x01){ base=0; }
+  else return;
+
+  const g=(o)=>dv.getUint8(base+o);
+  // Sticks/gachettes déjà gérés par la Gamepad API ; ici on lit les capteurs.
+
+  // Gyroscope (int16 LE) offsets 15,17,19 ; Accel 21,23,25
+  const gx=s16(dv.getUint16(base+15,true)), gy=s16(dv.getUint16(base+17,true)), gz=s16(dv.getUint16(base+19,true));
+  const ax=s16(dv.getUint16(base+21,true)), ay=s16(dv.getUint16(base+23,true)), az=s16(dv.getUint16(base+25,true));
+  setMotion('g','x',gx,'gxb'); setMotion('g','y',gy,'gyb'); setMotion('g','z',gz,'gzb');
+  setMotion('a','x',ax,'axb'); setMotion('a','y',ay,'ayb'); setMotion('a','z',az,'azb');
+
+  // Pavé tactile : 2 points à partir de l'offset 32 (4 octets chacun)
+  drawTouch(
+    parseTouch(dv, base+32),
+    parseTouch(dv, base+36)
+  );
+
+  // Batterie : offset 52 (niveau bits 0-3) / 53 état charge
+  try{
+    const bRaw=g(52); const level=bRaw & 0x0f; const status=(bRaw>>4)&0x0f;
+    let pct = Math.min(100, Math.round(level*10+5));
+    $('batt').textContent=pct+' %';
+    $('charging').textContent = (status===0x1)?'oui ⚡':'non';
+  }catch(e){}
+}
+
+function setMotion(kind,axis,val,barId){
+  $(kind+axis).textContent=val;
+  const max= kind==='g'?2000:8000;
+  const pct=Math.max(-1,Math.min(1,val/max));
+  const bar=$(barId); bar.style.left=(50+pct*48)+'%'; bar.style.width='4px';
+}
+
+function parseTouch(dv, off){
+  const b0=dv.getUint8(off);
+  const active = (b0 & 0x80)===0;
+  const x = dv.getUint8(off+1) | ((dv.getUint8(off+2)&0x0f)<<8);
+  const y = ((dv.getUint8(off+2)&0xf0)>>4) | (dv.getUint8(off+3)<<4);
+  return {active, x, y, id:b0&0x7f};
+}
+
+const padCanvas=$('pad'), pctx=padCanvas.getContext('2d');
+const PAD_W=1920, PAD_H=1080;
+function drawTouch(t0,t1){
+  pctx.clearRect(0,0,padCanvas.width,padCanvas.height);
+  pctx.strokeStyle='#1c2330'; pctx.strokeRect(2,2,padCanvas.width-4,padCanvas.height-4);
+  [[t0,'#22d3ee','t0led','t0xy'],[t1,'#f59e0b','t1led','t1xy']].forEach(([t,col,led,lbl])=>{
+    $(led).className='led'+(t.active?' on':'');
+    if(t.active){
+      const cx=t.x/PAD_W*padCanvas.width, cy=t.y/PAD_H*padCanvas.height;
+      pctx.beginPath(); pctx.arc(cx,cy,16,0,Math.PI*2); pctx.fillStyle=col; pctx.fill();
+      $(lbl).textContent=t.x+', '+t.y;
+    } else $(lbl).textContent='—';
+  });
+}
+
+/* ----- Sorties : résistance des gâchettes + LED ----- */
+['force','startPos'].forEach(id=>$(id).addEventListener('input',()=>{
+  $('forceV').textContent=$('force').value; $('startV').textContent=$('startPos').value;
+}));
+
+function triggerBytes(mode){
+  // 11 octets : [mode, force x7, ...]
+  const arr=new Uint8Array(11);
+  if(mode==='0'){ arr[0]=0x00; return arr; }
+  const force=+$('force').value, start=+$('startPos').value;
+  if(mode==='1'){ // Rigide / résistance constante
+    arr[0]=0x01;
+    for(let i=0;i<7;i++) arr[1+i]= i>=start ? force : 0;
+  } else { // Pulsation
+    arr[0]=0x02;
+    for(let i=0;i<7;i++) arr[1+i]= (i%2===0 && i>=start) ? force : Math.floor(force/3);
+  }
+  return arr;
+}
+
+async function sendOutput(opts={}){
+  if(!device) return;
+  const mode=$('trigMode').value;
+  const L = (opts.clear||!$('enL2').checked) ? new Uint8Array(11) : triggerBytes(mode);
+  const R = (opts.clear||!$('enR2').checked) ? new Uint8Array(11) : triggerBytes(mode);
+  const led = opts.led || hexToRgb($('ledColor').value);
+
+  const reportId = isBT?0x31:0x02;
+  const len = isBT?78:48;
+  const d = new Uint8Array(len);
+  let i=0; if(isBT){ d[0]=0x02; i=1; }
+  d[i+0]=0xff; // flag0
+  d[i+1]=0xf7; // flag1
+  d[i+2]=0;    // rumble faible
+  d[i+3]=0;    // rumble fort
+  // gâchette droite (R2) à i+10, gauche (L2) à i+21
+  R.forEach((b,k)=> d[i+10+k]=b);
+  L.forEach((b,k)=> d[i+21+k]=b);
+  // LED barre lumineuse
+  d[i+44]=0; // player led off
+  d[i+45]=led.r; d[i+46]=led.g; d[i+47]=led.b;
+
+  if(isBT){
+    const crc=crc32Hid(reportId, d.subarray(0,74));
+    d[74]=crc&0xff; d[75]=(crc>>>8)&0xff; d[76]=(crc>>>16)&0xff; d[77]=(crc>>>24)&0xff;
+  }
+  try{ await device.sendReport(reportId, d); }
+  catch(err){ console.warn('sendReport',err); }
+}
+
+$('applyTrig').addEventListener('click',()=>sendOutput());
+$('clearTrig').addEventListener('click',()=>sendOutput({clear:true}));
+$('applyLed').addEventListener('click',()=>sendOutput());
+
+function hexToRgb(h){ const n=parseInt(h.slice(1),16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}; }
+
+// CRC32 (pour les rapports Bluetooth)
+const CRC_TBL=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32Hid(reportId, data){
+  let crc=0xffffffff;
+  crc=(crc>>>8)^CRC_TBL[(crc^0xA2)&0xff];          // préfixe rapport de sortie
+  crc=(crc>>>8)^CRC_TBL[(crc^reportId)&0xff];
+  for(let i=0;i<data.length;i++) crc=(crc>>>8)^CRC_TBL[(crc^data[i])&0xff];
+  return (crc^0xffffffff)>>>0;
+}
+</script>
+</body>
+</html>
